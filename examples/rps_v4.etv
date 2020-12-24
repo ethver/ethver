@@ -1,0 +1,135 @@
+user "A";
+user "B";
+
+CONTRACT_BALANCE_MAX = 3;
+CONTRACT_BALANCE_INIT = 0;
+USER_BALANCE_MAX = 3;
+USER0_BALANCE_INIT = 1;
+USER1_BALANCE_INIT = 2;
+MAX_VALUE = 1;
+MAX_TIME = 2;
+TIME_DELTA = 3600;
+
+contract RPS {
+  uint(3) num_players;
+  address player_address[2];
+  uint(3) player_choice[2];
+  uint(3) p0; 
+  uint(3) p1;
+  cash(3) reward;
+  uint(2) player_num;
+  hash commitment[2];
+
+  bool committed[2];
+  bool has_revealed[2];
+  
+  constructor() {
+
+  }
+
+  function player_input(hash h) public payable {
+    if (((num_players >= 2) || (msg.value != finney(1))) 
+        || time_elapsed > 0) {
+      msg.sender.transfer(msg.value);
+    }
+    else if (((num_players < 2) && msg.value == finney(1))
+        && (time_elapsed == 0)) {
+      reward = reward + msg.value;
+      player_address[num_players] = msg.sender;
+      commitment[num_players] = h;
+      committed[num_players] = true;
+      num_players = num_players + 1;
+    }
+  }
+
+  function open(cmt_uint(3) cmt) public {
+    if (msg.sender == player_address[0]) {
+      player_num = 0;
+    }
+    else if (msg.sender == player_address[1]) {
+      player_num = 1;
+    }
+    if (committed[player_num] && (!has_revealed[player_num]) 
+        && verCmt(cmt, commitment[player_num])) {
+      has_revealed[player_num] = true;
+      player_choice[player_num] = valueOf(cmt);
+    }
+  }
+  
+
+  function finalize() public {
+    if ((time_elapsed > 1) && has_revealed[0] 
+        && (!has_revealed[1])) {
+      player_address[0].transfer(reward);
+    }
+    else if (((time_elapsed > 1) && (!has_revealed[0]))
+        && has_revealed[1]) {
+      player_address[1].transfer(reward);
+    }
+    else if ((time_elapsed > 0) && committed[0] 
+        && (!committed[1])) {
+      player_address[0].transfer(reward);
+    }
+    else if ((time_elapsed > 0) && (!committed[0]) 
+        && committed[1]) {
+      player_address[1].transfer(reward);
+    }
+    
+    else if (has_revealed[0] && has_revealed[1]) {
+      p0 = player_choice[0];
+      p1 = player_choice[1];
+      if ((((3 + p0) - p1) % 3) == 1) {
+        player_address[0].transfer(reward);
+      }
+      if ((((3 + p0) - p1) % 3) == 2) {
+        player_address[1].transfer(reward);
+      }
+      if ((((3 + p0) - p1) % 3) == 0) {
+        player_address[0].transfer(reward/2);
+        player_address[1].transfer(reward/2);
+      }
+    }
+  }
+}
+
+communication {
+
+}
+
+scenario A {
+  bool endA;
+  bool joinedA;
+  cmt_uint(3) cmtA;
+  cmtA.randomCmt();
+
+  player_input.sendTransaction(hashOf(cmtA), 
+    {value: 1});
+  wait(num_players == 2, 1);
+  if ((num_players == 2) && ((player_address[0] == this) 
+      || (player_address[1] == this))) {
+    joinedA = true;
+    cmtA.revealCmt();
+    open.sendTransaction(cmtA, {value: 0});
+    wait(has_revealed[0] && has_revealed[1], 2);
+  }
+  finalize.sendTransaction({value: 0});
+  endA = true;
+}
+
+scenario B {
+  bool endB;
+  cmt_uint(3) cmtB;
+  cmtB.randomCmt();
+
+  player_input.sendTransaction(hashOf(cmtB), 
+    {value: 1});
+  wait(num_players == 2, 1);
+  if ((num_players == 2) && ((player_address[0] == this) 
+      || (player_address[1] == this))) {
+    cmtB.revealCmt();
+    open.sendTransaction(cmtB, {value: 0});
+    wait(has_revealed[0] && has_revealed[1], 2);
+  }
+  finalize.sendTransaction({value: 0});
+  endB = true;
+}

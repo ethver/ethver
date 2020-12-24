@@ -1,0 +1,74 @@
+user "A";
+user "B";
+
+CONTRACT_BALANCE_MAX = 2;
+CONTRACT_BALANCE_INIT = 0;
+USER_BALANCE_MAX = 3;
+USER0_BALANCE_INIT = 1;
+USER1_BALANCE_INIT = 2;
+MAX_VALUE = 1;
+MAX_TIME = 2;
+TIME_DELTA = 3600;
+
+contract RPS {
+  uint(3) num_players;
+  address player_address[2];
+  uint(3) player_choice[2];
+  uint(3) p0;
+  uint(3) p1;
+  cash(3) reward;
+
+  constructor() {
+
+  }
+
+  function player_input(uint(3) choice) public payable {
+    if ((num_players < 2) && msg.value == finney(1)) {
+      reward = reward + msg.value;
+      player_address[num_players] = msg.sender;
+      player_choice[num_players] = choice;
+      num_players = num_players + 1;
+    }
+  }
+
+  function finalize() public {
+    if (num_players == 2) {
+      p0 = player_choice[0];
+      p1 = player_choice[1];
+      if ((((3 + p0) - p1) % 3) == 1) {
+        player_address[0].transfer(reward);
+      }
+      if ((((3 + p0) - p1) % 3) == 2) {
+        player_address[1].transfer(reward);
+      }
+      if ((((3 + p0) - p1) % 3) == 0) {
+        player_address[0].transfer(reward/2);
+        player_address[1].transfer(reward/2);
+      }
+    }
+  }
+}
+
+communication {
+
+}
+
+scenario A {
+  bool endA;
+  uint(3) choiceA;
+  choiceA = random(3);
+  player_input.sendTransaction(choiceA, {value: 1});
+  wait(num_players == 2, 1);
+  finalize.sendTransaction({value: 0});
+  endA = true;
+}
+
+scenario B {
+  bool endB;
+  uint(3) choiceB;
+  choiceB = random(3);
+  player_input.sendTransaction(choiceB, {value: 1});
+  wait(num_players == 2, 1);
+  finalize.sendTransaction({value: 0});
+  endB = true;
+}
